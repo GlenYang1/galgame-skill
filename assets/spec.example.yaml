@@ -1,0 +1,163 @@
+# galgame.spec.yaml —— galgame skill 的唯一输入契约
+# 每个顶层字段都是【可选】的：给得越多，生成离你的设想越近；给得越少，skill 补得越多。
+# 最小可用 spec 只有 project.title 一行；其余留空即由 skill 自动生成。
+
+project:
+  title: "星海回声"            # 必填（唯一必填项）
+  slug: "star_echo"            # 可选；缺省时由 title 音译/拼音生成
+  resolution: [1920, 1080]     # 可选；默认 1920x1080
+  language: "zh-CN"            # 可选；默认 zh-CN
+  theme: "classic"             # 可选: classic | modern | dark | minimal；默认 classic
+
+meta:                          # 可选：题材/基调，用于生成时的风格约束
+  genre: "校园 / 科幻 / 治愈"
+  tone: "温柔中带一点悬疑，第二人称旁白"
+  rating: "全年龄"
+  logline: "转学生在一座会播放旧日回声的海边小城，找回失踪姐姐的线索。"
+
+# ── 角色（人物线）────────────────────────────────────────────
+# 可选。缺省时 skill 从 logline/scenes 中推断并补齐。
+characters:
+  - id: "alice"                # 变量名（英文小写下划线）；用于 alice "台词"
+    name: "爱丽丝"             # 显示名
+    color: "#ff88aa"           # 名字颜色
+    sprite_slots: ["neutral", "happy", "sad", "surprised"]   # 立绘表情槽
+    arc: "从拒人千里到愿意托付秘密"
+    route: "alice_route"       # 属于哪条线；common 角色留空
+  - id: "ren"
+    name: "莲"
+    color: "#7ec8ff"
+    sprite_slots: ["neutral", "smile", "angry"]
+    arc: "青梅竹马，守着不能说的往事"
+    route: "ren_route"
+  - id: "narrator"             # 可省略；不写时 skill 默认旁白为裸字符串
+    name: ""
+    color: "#cccccc"
+
+# ── 数值/开关（flag）─────────────────────────────────────────
+# 可选。决定路线进入与结局判定的变量。
+flags:
+  - id: "alice_affection"
+    init: 0
+    type: "int"
+  - id: "ren_trust"
+    init: 0
+    type: "int"
+  - id: "saw_lighthouse"
+    init: false
+    type: "bool"
+
+# ── 线路结构（各种线）────────────────────────────────────────
+# 可选。缺省时 skill 生成「共通线 + 每个角色一条个人线 + 真结局线」。
+routes:
+  - id: "common"
+    type: "common"             # common | character | grand(真结局/后宫/大线)
+    title: "序章 ~ 第三章"
+    entry: "start"             # 进入条件：start 或一个 flag 表达式
+  - id: "alice_route"
+    type: "character"
+    title: "爱丽丝线"
+    entry_condition: "alice_affection >= 5"   # 从共通线进入本线的条件
+  - id: "ren_route"
+    type: "character"
+    title: "莲线"
+    entry_condition: "ren_trust >= 5"
+  - id: "true_route"
+    type: "grand"
+    title: "真结局线"
+    entry_condition: "saw_lighthouse and alice_affection >= 8 and ren_trust >= 8"
+
+# ── 场景与情节 ──────────────────────────────────────────────
+# 可选。给 scenes 时即「导入情节」；不给时 skill 按 route 骨架自动铺场。
+# 字段全部可选：bg / show / lines / choices / next / transition 都能省。
+scenes:
+  - id: "s1"
+    route: "common"
+    bg: "bg_seaside"           # 对应 assets.images 的 key，或自动生成的占位图
+    transition: "fade"         # 可选；默认无转场
+    show:
+      - {char: "alice", expr: "neutral", pos: "left"}
+    lines:
+      - {narrator: "海风把旧收音机的杂音吹散了一瞬。"}
+      - {who: "alice", text: "你也听见了吧？那首歌。"}
+      - {who: "ren",   text: "……别理她，那只是噪音。"}
+    choices:                   # 内联选项；也可写成 choices 顶层列表 + choices: ["c1"]
+      - id: "c1"
+        prompt: "要怎么回应？"
+        options:
+          - text: "认真回答爱丽丝"
+            effects: {alice_affection: 1}
+            next: "s2"
+          - text: "顺着莲的话打圆场"
+            effects: {ren_trust: 1}
+            next: "s2"
+          - text: "沉默，先记下这段旋律"
+            effects: {saw_lighthouse: true}
+            next: "s2"
+    next: "s2"
+
+  - id: "s2"
+    route: "common"
+    bg: "bg_classroom"
+    lines:
+      - {narrator: "第二天，教室的窗边位置空着。"}
+    # 无 next：由 skill 自动接到本 route 的下一个场景，或本 route 的出口
+
+  - id: "a1"
+    route: "alice_route"
+    bg: "bg_lighthouse"
+    show:
+      - {char: "alice", expr: "happy", pos: "center"}
+    lines:
+      - {who: "alice", text: "灯塔的灯，其实是我姐姐修的。"}
+      - {narrator: "她把最后一句话咽了回去，等你先开口。"}
+    choices:
+      - id: "c_final"
+        prompt: "要不要说出你已经知道的事？"
+        options:
+          - text: "把一切告诉她"
+            effects: {alice_affection: 3, saw_lighthouse: true}
+            next: "ending_true"          # 满足真结局条件 -> 真结局
+          - text: "先替她保守这个秘密"
+            next: "ending_alice_good"    # 走向爱丽丝线好结局
+
+# ── 结局 ────────────────────────────────────────────────────
+# 可选。缺省时 skill 为每条线生成一个「普通结局」，并为 grand 线生成真结局。
+endings:
+  - id: "true"
+    title: "真结局 · 回声归位"
+    route: "true_route"
+    requires: "saw_lighthouse and alice_affection >= 8 and ren_trust >= 8"
+    scene: "a1"
+    unlock_cg: "cg_finale"     # 可选：解锁到 CG 画廊
+  - id: "alice_good"
+    title: "爱丽丝线 · 好结局"
+    route: "alice_route"
+    requires: "alice_affection >= 6"
+  - id: "normal"
+    title: "普通结局"
+    route: "common"
+
+# ── 资源（图片 / 音频）──────────────────────────────────────
+# 可选。给了就用你的图；没给时 key 仍会被生成语句引用，skill 负责补占位图或调用生图能力。
+assets:
+  images:
+    bg_seaside:      "images/bg/seaside.png"
+    bg_classroom:    "images/bg/classroom.png"
+    bg_lighthouse:   "images/bg/lighthouse.png"
+    alice_neutral:   "images/char/alice_neutral.png"
+    alice_happy:     "images/char/alice_happy.png"
+    alice_sad:       "images/char/alice_sad.png"
+    alice_surprised: "images/char/alice_surprised.png"
+    ren_neutral:     "images/char/ren_neutral.png"
+    ren_smile:       "images/char/ren_smile.png"
+    ren_angry:       "images/char/ren_angry.png"
+    cg_finale:       "images/cg/finale.png"
+  audio:
+    bgm_main: "audio/bgm_main.ogg"   # 可选；缺省时接入静音占位或跳过
+
+# ── 输出选项 ────────────────────────────────────────────────
+build:                         # 可选
+  include_gallery: true        # 是否生成 CG/结局画廊
+  include_quick_menu: true
+  target: ["pc"]               # pc | mac | web | android（对应 renpy distribute / web_build）
