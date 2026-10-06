@@ -97,4 +97,3 @@ galgame/
 
 MIT. See [LICENSE](LICENSE) when present.
 
-ClawsGO Science Agent
